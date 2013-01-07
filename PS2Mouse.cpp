@@ -1,4 +1,4 @@
-#include "WConstants.h"
+#include "Arduino.h"
 #include "HardwareSerial.h"
 #include "PS2Mouse.h"
 
@@ -7,8 +7,7 @@ PS2Mouse::PS2Mouse(int clock_pin, int data_pin, int mode) {
   _data_pin = data_pin;
   _mode = mode;
   _initialized = false;  
-  _disabled = true;
-  _enabled = false;
+  _reporting_enabled = false;
 }
 
 int PS2Mouse::clock_pin() {
@@ -19,15 +18,15 @@ int PS2Mouse::data_pin() {
   return _data_pin;
 }
 
-void PS2Mouse::initialize() {
+bool PS2Mouse::initialize() {
   pull_high(_clock_pin);
   pull_high(_data_pin);
   delay(20);
   write(0xff); // Send Reset to the mouse
   read_byte();  // Read ack byte 
   delay(20); // Not sure why this needs the delay
-  read_byte();  // blank 
-  read_byte();  // blank
+  int bat_result = read_byte();  // result of BAT (0xAA=succes, 0xFC=error)
+  int dev_id = read_byte();  // device ID (0x00 or optionally 0x03 for intellimouse after magic init)
   delay(20); // Not sure why this needs the delay
   if (_mode == REMOTE) {
     set_remote_mode();
@@ -35,7 +34,13 @@ void PS2Mouse::initialize() {
     enable_data_reporting(); // Tell the mouse to start sending data again
   }
   delayMicroseconds(100);
-  _initialized = 1;
+
+  if (bat_result == 0xAA) {
+    _initialized = 1;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void PS2Mouse::set_mode(int data) {
@@ -86,19 +91,19 @@ void PS2Mouse::set_scaling_1_1() {
 
 // This only effects data reporting in Stream mode.
 void PS2Mouse::enable_data_reporting() {
-  if (!_enabled) {
+  if (!_reporting_enabled) {
     write(0xf4); // Send enable data reporting
     read_byte(); // Read Ack Byte
-    _enabled = true;
+    _reporting_enabled = true;
   }
 }
 
 // Disabling data reporting in Stream Mode will make it behave like Remote Mode
 void PS2Mouse::disable_data_reporting() {
-  if (!_disabled) {
+  if (_reporting_enabled) {
     write(0xf5); // Send disable data reporting
     read_byte(); // Read Ack Byte    
-    _disabled = true;
+    _reporting_enabled = false;
   }
 }
 
@@ -156,9 +161,11 @@ void PS2Mouse::write(int data) {
   pull_low(_clock_pin); // put a hold on the incoming data.
 }
 
-int * PS2Mouse::report(int data[]) {
-  write(0xeb); // Send Read Data
-  read_byte(); // Read Ack Byte
+int * PS2Mouse::report(int data[], bool only_read) {
+  if (! only_read) {
+    write(0xeb); // Send Read Data
+    read_byte(); // Read Ack Byte
+  }
   data[0] = read(); // Status bit
   data[1] = read_movement_x(data[0]); // X Movement Packet
   data[2] = read_movement_y(data[0]); // Y Movement Packet

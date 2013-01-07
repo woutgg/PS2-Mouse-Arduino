@@ -1,6 +1,6 @@
 #ifndef PS2Mouse_h
-
 #define PS2Mouse_h
+
 #define REMOTE 1
 #define STREAM 2
 
@@ -11,8 +11,7 @@ class PS2Mouse
     int _data_pin;
     int _mode;
     int _initialized;
-    int _enabled;
-    int _disabled;
+    int _reporting_enabled;
     int read_byte();
     int read_bit();
     int read_movement_x(int);
@@ -22,11 +21,11 @@ class PS2Mouse
     void set_mode(int);
   public:
     PS2Mouse(int, int, int mode = REMOTE);
-    void initialize();
+    bool initialize();
     int clock_pin();
     int data_pin();
     int read();
-    int* report(int data[]);
+    int* report(int data[], bool only_read = true);
     void write(int);
     void enable_data_reporting();
     void disable_data_reporting();
