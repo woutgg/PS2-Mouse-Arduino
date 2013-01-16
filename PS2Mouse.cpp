@@ -2,7 +2,7 @@
 #include "Arduino.h"
 #include "PS2Mouse.h"
 
-PS2Mouse::PS2Mouse(int clock_pin, int data_pin, int mode)
+	PS2Mouse::PS2Mouse(int clock_pin, int data_pin, int mode)
 : _clock_pin(clock_pin), _data_pin(data_pin), _mode(mode), _initialized(false), _reporting_enabled(false)
 { /* empty */ }
 
@@ -16,6 +16,9 @@ bool PS2Mouse::initialize() {
 	int bat_result = read_byte();  // result of BAT (0xAA=succes, 0xFC=error)
 	int dev_id = read_byte();  // device ID (0x00 or optionally 0x03 for intellimouse after magic init)
 	delay(20); // Not sure why this needs the delay
+
+	if (bat_result != 0xAA) return false;
+
 	if (_mode == PS2_REMOTE) {
 		set_remote_mode();
 	} else {
@@ -23,12 +26,8 @@ bool PS2Mouse::initialize() {
 	}
 	delayMicroseconds(100);
 
-	if (bat_result == 0xAA) {
-		_initialized = 1;
-		return true;
-	} else {
-		return false;
-	}
+	_initialized = 1;
+	return true;
 }
 
 int PS2Mouse::clock_pin() const {
@@ -120,35 +119,35 @@ void PS2Mouse::write(int data) {
 	pull_high(_clock_pin); // Start Bit
 	while (digitalRead(_clock_pin)) {;} // wait for mouse to take control of clock)
 	// clock is low, and we are clear to send data 
-for (i=0; i < 8; i++) {
-	if (data & 0x01) {
+	for (i=0; i < 8; i++) {
+		if (data & 0x01) {
+			pull_high(_data_pin);
+		} else {
+			pull_low(_data_pin);
+		}
+		// wait for clock cycle 
+		while (!digitalRead(_clock_pin)) {;}
+		while (digitalRead(_clock_pin)) {;}
+		parity = parity ^ (data & 0x01);
+		data = data >> 1;
+	}  
+	// parity 
+	if (parity) {
 		pull_high(_data_pin);
 	} else {
 		pull_low(_data_pin);
 	}
-		// wait for clock cycle 
 	while (!digitalRead(_clock_pin)) {;}
-	while (digitalRead(_clock_pin)) {;}
-	parity = parity ^ (data & 0x01);
-	data = data >> 1;
-}  
-	// parity 
-if (parity) {
+	while (digitalRead(_clock_pin)) {;}  
 	pull_high(_data_pin);
-} else {
-	pull_low(_data_pin);
-}
-while (!digitalRead(_clock_pin)) {;}
-while (digitalRead(_clock_pin)) {;}  
-pull_high(_data_pin);
-delayMicroseconds(50);
-while (digitalRead(_clock_pin)) {;}
+	delayMicroseconds(50);
+	while (digitalRead(_clock_pin)) {;}
 	while ((!digitalRead(_clock_pin)) || (!digitalRead(_data_pin))) {;} // wait for mouse to switch modes
 	pull_low(_clock_pin); // put a hold on the incoming data.
 }
 
-int * PS2Mouse::report(int data[], bool only_read) {
-	if (! only_read) {
+int * PS2Mouse::report(int data[]) {
+	if (_mode == PS2_REMOTE) {
 		write(0xeb); // Send Read Data
 		read_byte(); // Read Ack Byte
 	}
@@ -164,7 +163,7 @@ int * PS2Mouse::report(int data[], bool only_read) {
  *********************/
 
 int PS2Mouse::read_movement_x(int status) {
-	int x = read();
+	int x = read_byte();
 	if (bitRead(status, 4)) {
 		for(int i = 8; i < 16; ++i) {
 			x |= (1<<i);
@@ -174,7 +173,7 @@ int PS2Mouse::read_movement_x(int status) {
 }
 
 int PS2Mouse::read_movement_y(int status) {
-	int y = read();
+	int y = read_byte();
 	if (bitRead(status, 5)) {
 		for(int i = 8; i < 16; ++i) {
 			y |= (1<<i);

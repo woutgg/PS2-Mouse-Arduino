@@ -23,7 +23,7 @@ public:
 
 	int read();
 	void write(int);
-	int* report(int data[], bool only_read = true);
+	int* report(int data[]);
 	
 private:
 	const int _clock_pin;
