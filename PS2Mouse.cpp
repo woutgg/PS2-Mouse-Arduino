@@ -1,8 +1,14 @@
 #include "HardwareSerial.h"
 #include "Arduino.h"
 #include "PS2Mouse.h"
+#include "Streaming.h"
 
-	PS2Mouse::PS2Mouse(int clock_pin, int data_pin, int mode)
+#define while25usec(cond) { \
+	unsigned long stop = microSeconds() + 25; \
+	while ((cond) && microSeconds() < stop) {;} \
+}
+
+PS2Mouse::PS2Mouse(int clock_pin, int data_pin, int mode)
 : _clock_pin(clock_pin), _data_pin(data_pin), _mode(mode), _initialized(false), _reporting_enabled(false)
 { /* empty */ }
 
@@ -10,11 +16,16 @@ bool PS2Mouse::initialize() {
 	pull_high(_clock_pin);
 	pull_high(_data_pin);
 	delay(20);
+	Serial << "+";
 	write(0xff); // Send Reset to the mouse
-	read_byte();  // Read ack byte 
-	delay(20); // Not sure why this needs the delay
+	Serial << "+";
+	read_byte();  // Read ack byte
+	Serial << "+";
+	//delay(200); // Not sure why this needs the delay
 	int bat_result = read_byte();  // result of BAT (0xAA=succes, 0xFC=error)
+	Serial << "+";
 	int dev_id = read_byte();  // device ID (0x00 or optionally 0x03 for intellimouse after magic init)
+	Serial << "+";
 	delay(20); // Not sure why this needs the delay
 
 	if (bat_result != 0xAA) return false;
